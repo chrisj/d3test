@@ -1,0 +1,370 @@
+<html>
+<head>
+<script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+<script src="d3-slider/d3.slider.js"></script>
+<link rel="stylesheet" href="d3-slider/d3.slider.css" />
+<style>
+
+body {
+  padding: 0;
+  margin: 0;
+
+  font-family: sans-serif;
+}
+
+div.bar {
+    display: inline-block;
+    width: 20px;
+    height: 75px;   /* We'll override this later */
+    background-color: teal;
+		margin-right: 2px;
+}
+
+.d3-slider-vertical {
+  display: inline-block;
+  margin-left: 150px;
+  height: 200px;
+}
+
+.d3-slider-vertical>span {
+  position:absolute;
+  right: 70px;
+  font-size: 12px;
+  top: -8px;
+}
+
+.d3-slider-vertical>span.num {
+  right: 25px;
+}
+
+#sliders {
+  /*padding-top: 50px;*/
+}
+
+.group {
+  box-sizing: border-box;
+  width: calc(50% - 10px); /* 10px buffer */
+  display: inline-block;
+  padding: 30px;
+}
+
+.groupHeader {
+  margin-bottom:30px;
+}
+
+.axis path,
+.axis line {
+    fill: none;
+    stroke: black;
+    shape-rendering: crispEdges;
+}
+
+.axis text {
+    font-family: sans-serif;
+    font-size: 11px;
+}
+
+.explanation {
+  display: inline-block;
+  width: 40%;
+  float: left;
+}
+
+button {
+  display: block;
+  float: left;
+  height: 30px;
+}
+
+</style>
+</head>
+<body>
+  <h1>Understanding Scything in the Consensus System</h1>
+  <div id="barContainer"></div>
+  <div id="sliders">
+    <div id="tracers" class="group">
+      <h3 class="groupHeader">4 Tracers:</h3>
+      <div class="explanation">Here you can set the p0 and p1 for the tracers. We then assume there are 4 tracers each with these probabilitie and they each want to turn a single segment on. We then calculate the number of scythes needed to reap the cube in order to turn the segment off.</div>
+      <div id="p0a"><span>p0</span><span class="num">0.6</span></div>
+      <div id="p1a"><span>p1</span><span class="num">0.6</span></div>
+
+      <button id="goodTracer">Good Tracer</button>
+      <button id="mediumTracer">Medium Tracer</button>
+      <button id="badTracer">Bad Tracer</button>
+    </div>
+    <div id="scythes" class="group">
+      <h3 class="groupHeader">Scythes:</h3>
+      <div class="explanation">todo</div>
+      <div id="p0b"><span>p0</span><span class="num">0.6</span></div>
+      <div id="p1b"><span>p1</span><span class="num">0.6</span></div>
+
+      <button id="goodScythe">Good Scythe</button>
+      <button id="mediumScythe">Medium Scythe</button>
+      <button id="badScythe">Bad Scythe</button>
+    </div>
+  </div>
+</body>
+<script>
+// Enter p0 for first group (slider)
+// Enter p1 for first group (slider)
+//
+// Enter count for first group
+//
+//
+// Enter p0 for second group
+// Enter p1 for second group
+//
+// Enter count for first group
+
+
+
+function clamp(val, min, max) {
+  return Math.max(min, Math.min(max, val));
+}
+
+var LOCK_THRESHOLD = 4;
+
+var EPS = 0.00001
+
+function updateBasedOnSliders() {
+    for (var i = 0; i < sliders.length; i++) {
+      var numEl = slideEls[i].select('.num');
+      var value = sliders[i].value();
+      numEl.style({
+        top: 'auto',
+        bottom: `calc(${value}% - 4px)`
+      });
+      numEl.text(roundToDecimal(value / 100, 2));
+    }
+
+  var peas = sliders.map(s => clamp(Math.round(s.value()) / 100, EPS, 1 - EPS));
+
+  var p0A = peas[0];
+  var p1A = peas[1];
+
+  var p0B = peas[2];
+  var p1B = peas[3];
+
+  var numA = select(true, p0A, p1A);
+  var numB = select(false, p0B, p1B);
+
+  var nums = [numA, numB];
+
+  if (numA === 0) {
+    numA = EPS;
+  }
+
+  if (numB === 0) {
+    numB = EPS;
+  }
+
+  dataset = [Math.abs(numA * LOCK_THRESHOLD / numB)];
+  redo();
+}
+
+function pSlider() {
+  return d3.slider()
+    .value(60)
+    .orientation("vertical")
+    .axis(true).min(0).max(100)
+    .on('slide', updateBasedOnSliders);
+}
+
+var p0aSlider = pSlider();
+var p1aSlider = pSlider();
+var p0bSlider = pSlider();
+var p1bSlider = pSlider();
+
+var sliders = [p0aSlider, p1aSlider, p0bSlider, p1bSlider];
+var slideEls = ['#p0a', '#p1a', '#p0b', '#p1b'].map(d3.select);
+
+for (var i = 0; i < sliders.length; i++) {
+  slideEls[i].call(sliders[i]);
+}
+
+
+function loadP(group, data) {
+  if (group === 'a') {
+    p0aSlider.value(data.p0 * 100);
+    p1aSlider.value(data.p1 * 100);
+  } else {
+    p0bSlider.value(data.p0 * 100);
+    p1bSlider.value(data.p1 * 100);
+  }
+
+  updateBasedOnSliders();
+}
+
+
+// var dataset = [ 25, 7, 5, 26, 11, 8, 25, 14, 23, 19,
+//                 14, 11, 22, 29, 11, 13, 12, 17, 18, 10,
+//                 24, 18, 25, 9, 3 ];
+//
+
+var dataset = [5]
+
+var w = window.innerWidth;
+var h = 450;
+
+var padding = 30;
+
+var scale = d3.scale.linear()
+  .domain([0, 10])
+  .range([h - padding, padding]);
+
+var yAxis = d3.svg.axis();
+yAxis.scale(scale);
+
+yAxis.orient("left");
+
+var barPadding = 0;
+
+var svg = d3.select("#barContainer")
+					.append("svg")
+					.attr("width", w)   // <-- Here
+					.attr("height", h); // <-- and here!
+
+svg.selectAll("rect")
+	.data(dataset)
+	.enter()
+	.append("rect")
+	.attr("x", function(d, i) {
+		return i * (w / dataset.length) + padding * 2;  //Bar width of 20 plus 1 for padding
+	})
+	.attr("y", d => scale(d))
+	.attr("width", (w / dataset.length - barPadding) - padding * 4)
+	.attr("height", d => scale(d))
+	.attr("fill", function(d) {
+			return "teal";
+	});
+
+svg.selectAll("text")
+	.data(dataset)
+	.enter()
+	.append("text")
+	.attr("x", function(d, i) {
+		return i * (w / dataset.length) + (w / dataset.length - barPadding) / 2;
+	})
+	.attr("text-anchor", "middle")
+	.attr("font-family", "sans-serif")
+	.attr("font-size", "15pt")
+	.attr("fill", "black");
+
+svg.append("g")
+    .attr("class", "axis")
+    .attr("transform", "translate(" + padding + ",0)")
+    .call(yAxis);
+
+
+function roundToDecimal(num, dec) {
+  return (Math.round(num * Math.pow(10, dec)) / Math.pow(10, dec)).toFixed(dec);
+}
+
+function redo() {
+  svg.selectAll("rect").data(dataset)
+    .attr("y", d => scale(d))
+    .attr("height", d => {
+      return (h - padding) - scale(d)
+    });
+
+  svg.selectAll("text").data(dataset)
+    .text(d => roundToDecimal(d, 2))
+      .attr("y", d => scale(d) - padding);
+}
+
+loadP('a', {
+  p0: 0.7,
+  p1: 0.7
+});
+
+loadP('b', {
+  p0: 0.8,
+  p1: 0.8
+});
+
+
+function logWithBase(base, x) {
+	return Math.log(x) / Math.log(base);
+}
+
+function select(isOn, p0, p1) {
+	return logWithBase(2, p0 * (1 - isOn) + isOn * (1 - p0))
+	     - logWithBase(2, p1 * isOn + (1 - p1) * (1 - isOn));
+}
+
+
+function calculateNum(nums) {
+	var sum = nums.reduce((p, c) => p + c);
+	return 1 / (Math.exp(sum) + 1)
+}
+
+var data = [
+	{
+		p0: 0.9999,
+		p1: 0.9999,
+		isOn: false
+	},
+	{
+		p0: 0.2,
+		p1: 0.4,
+		isOn: true
+	},
+	{
+		p0: 0.75,
+		p1: 0.38,
+		isOn: true
+	},
+	{
+		p0: 0.5,
+		p1: 0.5,
+		isOn: true
+	},
+];
+
+var nums = data.map(d => select(d.isOn, d.p0, d.p1));
+
+console.log(nums);
+
+console.log(calculateNum(nums) > 0.5 ? 'TRUE' : 'FALSE');
+
+
+var scythesLvl1 = [
+  { p0: 0.99552845515049, p1: 0.8066100191265463 },
+  { p0: 0.995028532987742, p1: 0.8166293922685582 },
+  { p0: 0.9956347423623844, p1: 0.8186210366718312 }
+];
+
+var scythesLvl2 = [
+  { p0: 0.9959600721860249, p1: 0.8725664537811441 },
+  { p0: 0.9956391611473367, p1: 0.874964579615744 },
+  { p0: 0.9960305919994805, p1: 0.8611692142693292 }
+];
+
+var tracersLvl1 = [
+  { p0: 0.9917421982977642, p1: 0.4112304895603768 },
+  { p0: 0.9734612641506782, p1: 0.3912514436258792 },
+  { p0: 0.9198636343763035, p1: 0.31810447286652155 }
+];
+
+var tracersLvl2 = [
+  { p0: 0.9937114242123907, p1: 0.8234747742477784 },
+  { p0: 0.9695077153279075, p1: 0.6975867695787518 },
+  { p0: 0.9478130511876429, p1: 0.7062704864868438 }
+];
+
+function bindButton(id, group, val) {
+  d3.select(id).on('click', function () {
+    loadP(group, (group === 'a' ? tracersLvl2 : scythesLvl2)[val]);
+  });
+}
+
+bindButton('#goodScythe', 'b', 0);
+bindButton('#mediumScythe', 'b', 1);
+bindButton('#badScythe', 'b', 2);
+
+bindButton('#goodTracer', 'a', 0);
+bindButton('#mediumTracer', 'a', 1);
+bindButton('#badTracer', 'a', 2);
+
+</script>
+</html>
