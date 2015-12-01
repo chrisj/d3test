@@ -26,9 +26,9 @@ div.bar {
   height: 200px;
 }
 
-.d3-slider-vertical>span {
+.d3-slider>span {
   position:absolute;
-  right: 70px;
+  right: calc(100% + 50px);
   font-size: 12px;
   top: -8px;
 }
@@ -71,60 +71,83 @@ div.bar {
 }
 
 button {
-  display: block;
-  float: left;
+  display: inline-block;
   height: 30px;
+}
+
+#separateControls {
+  padding: 30px;
+}
+
+#lockThreshold {
+  width: 50%;
+  display: inline-block;
+  margin-top: 30px;
+  margin-left: 105px;
+}
+
+p {
+  padding: 30px;
+}
+
+.lock, .undercolor, .overcolor {
+  font-weight: bold;
+}
+
+.btnGroup {
+  margin-top: -131px;
 }
 
 </style>
 </head>
 <body>
-  <h1>Understanding Scything in the Consensus System</h1>
+  <h1>Why scything is broken in the NCS (new consenus system)</h1>
   <div id="barContainer"></div>
+  <div id="separateControls">
+    <input type="radio" name="off" id="remove" class="radio" value="0" checked="checked">Fix Undercoloring
+    <input type="radio" name="off" id="add" class="radio" value="1">Fix Overcoloring
+    <br/>
+    <div id="lockThreshold"><span>Lock Threshold</span></div>
+  </div>
   <div id="sliders">
     <div id="tracers" class="group">
-      <h3 class="groupHeader">4 Tracers:</h3>
-      <div class="explanation">Here you can set the p0 and p1 for the tracers. We then assume there are 4 tracers each with these probabilitie and they each want to turn a single segment on. We then calculate the number of scythes needed to reap the cube in order to turn the segment off.</div>
+      <h3 class="groupHeader"><span class="lock"></span> Tracers:</h3>
+      <div class="explanation">The p0 and p1 for the <span class="lock"></span> tracers. They have chosen to <span class="overcolor">deselect</span> a segment.</div>
       <div id="p0a"><span>p0</span><span class="num">0.6</span></div>
       <div id="p1a"><span>p1</span><span class="num">0.6</span></div>
 
-      <button id="goodTracer">Good Tracer</button>
+      <div class="btnGroup"><button id="goodTracer">Good Tracer</button>
       <button id="mediumTracer">Medium Tracer</button>
-      <button id="badTracer">Bad Tracer</button>
+      <button id="badTracer">Bad Tracer</button></div>
     </div>
     <div id="scythes" class="group">
       <h3 class="groupHeader">Scythes:</h3>
-      <div class="explanation">todo</div>
+      <div class="explanation">The p0 and p1 for the <b>1</b> scythe. They have chosen to <span class="undercolor">select</span> a segment.</div>
       <div id="p0b"><span>p0</span><span class="num">0.6</span></div>
       <div id="p1b"><span>p1</span><span class="num">0.6</span></div>
 
-      <button id="goodScythe">Good Scythe</button>
+      <div class="btnGroup"><button id="goodScythe">Good Scythe</button>
       <button id="mediumScythe">Medium Scythe</button>
-      <button id="badScythe">Bad Scythe</button>
+      <button id="badScythe">Bad Scythe</button></div>
     </div>
+  </div>
+  <div id="footer">
+  <p>
+    We have an undercoloring problem, not an overcoloring problem. The NCS using the players previous validations will be biased towards segments being on rather than off. Therefore, it is easy for a scythe to add a missing segment but difficult for a scythe to remove an incorrect segment.
+  </p>
   </div>
 </body>
 <script>
-// Enter p0 for first group (slider)
-// Enter p1 for first group (slider)
-//
-// Enter count for first group
-//
-//
-// Enter p0 for second group
-// Enter p1 for second group
-//
-// Enter count for first group
-
-
 
 function clamp(val, min, max) {
   return Math.max(min, Math.min(max, val));
 }
 
-var LOCK_THRESHOLD = 4;
+var lockThreshold = 4;
 
-var EPS = 0.00001
+var EPS = 0.00001;
+
+var fixOvercoloring = false;
 
 function updateBasedOnSliders() {
     for (var i = 0; i < sliders.length; i++) {
@@ -145,8 +168,8 @@ function updateBasedOnSliders() {
   var p0B = peas[2];
   var p1B = peas[3];
 
-  var numA = select(true, p0A, p1A);
-  var numB = select(false, p0B, p1B);
+  var numA = select(fixOvercoloring, p0A, p1A);
+  var numB = select(!fixOvercoloring, p0B, p1B);
 
   var nums = [numA, numB];
 
@@ -158,7 +181,7 @@ function updateBasedOnSliders() {
     numB = EPS;
   }
 
-  dataset = [Math.abs(numA * LOCK_THRESHOLD / numB)];
+  dataset = [Math.abs(numA * lockThreshold / numB)];
   redo();
 }
 
@@ -166,7 +189,7 @@ function pSlider() {
   return d3.slider()
     .value(60)
     .orientation("vertical")
-    .axis(true).min(0).max(100)
+    .axis(true).min(0).max(100).step(1)
     .on('slide', updateBasedOnSliders);
 }
 
@@ -182,8 +205,16 @@ for (var i = 0; i < sliders.length; i++) {
   slideEls[i].call(sliders[i]);
 }
 
+var lockSlider = d3.slider()
+  .value(4)
+  .axis(true).min(0).max(10).step(1)
+  .on('slide', updateLockThreshold);
+
+d3.select('#lockThreshold').call(lockSlider);
+
 
 function loadP(group, data) {
+  // data.p0 = 1;
   if (group === 'a') {
     p0aSlider.value(data.p0 * 100);
     p1aSlider.value(data.p1 * 100);
@@ -195,11 +226,17 @@ function loadP(group, data) {
   updateBasedOnSliders();
 }
 
+d3.selectAll('.radio').on('change', function (evt) {
+  var selected = d3.selectAll('.radio').filter(function () {
+    return this.checked;
+  });
 
-// var dataset = [ 25, 7, 5, 26, 11, 8, 25, 14, 23, 19,
-//                 14, 11, 22, 29, 11, 13, 12, 17, 18, 10,
-//                 24, 18, 25, 9, 3 ];
-//
+  fixOvercoloring = parseInt(selected.attr('value')) === 1;
+  d3.select('.overcolor').text(fixOvercoloring ? 'select' : 'deselect');
+  d3.select('.undercolor').text(!fixOvercoloring ? 'select' : 'deselect');
+
+  updateBasedOnSliders();
+});
 
 var dataset = [5]
 
@@ -235,7 +272,7 @@ svg.selectAll("rect")
 	.attr("width", (w / dataset.length - barPadding) - padding * 4)
 	.attr("height", d => scale(d))
 	.attr("fill", function(d) {
-			return "teal";
+			return "gainsboro";
 	});
 
 svg.selectAll("text")
@@ -268,7 +305,7 @@ function redo() {
     });
 
   svg.selectAll("text").data(dataset)
-    .text(d => roundToDecimal(d, 2))
+    .text(d => roundToDecimal(d, 2) + ' (' + (Math.ceil(d) + ' Scythes)'))
       .attr("y", d => scale(d) - padding);
 }
 
@@ -281,6 +318,14 @@ loadP('b', {
   p0: 0.8,
   p1: 0.8
 });
+
+function updateLockThreshold(evt, val) {
+  lockThreshold = val;
+  d3.selectAll('.lock').text(lockThreshold);
+  updateBasedOnSliders();
+}
+
+updateLockThreshold(null, 2);
 
 
 function logWithBase(base, x) {
@@ -297,36 +342,6 @@ function calculateNum(nums) {
 	var sum = nums.reduce((p, c) => p + c);
 	return 1 / (Math.exp(sum) + 1)
 }
-
-var data = [
-	{
-		p0: 0.9999,
-		p1: 0.9999,
-		isOn: false
-	},
-	{
-		p0: 0.2,
-		p1: 0.4,
-		isOn: true
-	},
-	{
-		p0: 0.75,
-		p1: 0.38,
-		isOn: true
-	},
-	{
-		p0: 0.5,
-		p1: 0.5,
-		isOn: true
-	},
-];
-
-var nums = data.map(d => select(d.isOn, d.p0, d.p1));
-
-console.log(nums);
-
-console.log(calculateNum(nums) > 0.5 ? 'TRUE' : 'FALSE');
-
 
 var scythesLvl1 = [
   { p0: 0.99552845515049, p1: 0.8066100191265463 },
@@ -347,7 +362,8 @@ var tracersLvl1 = [
 ];
 
 var tracersLvl2 = [
-  { p0: 0.9937114242123907, p1: 0.8234747742477784 },
+  { p0: 0.9945033310560526, p1: 0.8397268776893329 },
+  // { p0: 0.9937114242123907, p1: 0.8234747742477784 },
   { p0: 0.9695077153279075, p1: 0.6975867695787518 },
   { p0: 0.9478130511876429, p1: 0.7062704864868438 }
 ];
